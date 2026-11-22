@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>League</title>
+  <style>
+    :root { --accent: #1f7a4d; --accent-dark: #17603b; --danger: #c0392b; --bg: #f4f6f8;
+            --card: #fff; --text: #1d2733; --muted: #6b7785; --border: #dde3ea; --mine: #e8f5ee; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: var(--bg); color: var(--text); line-height: 1.45; }
+    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 12px 16px;
+             display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    header h1 { font-size: 1.2rem; margin: 0 auto 0 0; }
+    main { max-width: 960px; margin: 0 auto; padding: 16px; }
+    h2 { font-size: 1.2rem; margin: 0 0 12px; }
+    h3 { font-size: 1rem; margin: 20px 0 8px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+    .stack { display: flex; flex-direction: column; gap: 10px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
+    input, select, textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: var(--text); min-width: 0; }
+    textarea { resize: vertical; }
+    button { font: inherit; padding: 8px 14px; border: none; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+    button:hover { background: var(--accent-dark); }
+    button.ghost { background: none; color: var(--accent); border: 1px solid var(--accent); }
+    button.link { background: none; color: var(--accent); padding: 0; }
+    button.danger { background: none; color: var(--danger); }
+    .muted { color: var(--muted); }
+    label.check { flex-direction: row; align-items: center; }
+    .small { font-size: 0.85rem; }
+    .badge { background: var(--mine); color: var(--accent-dark); font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; margin-left: 6px; }
+    .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; flex-wrap: wrap; }
+    .tabs button { background: none; color: var(--muted); border-radius: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+    .table-wrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+    th, td { padding: 9px 10px; text-align: center; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; font-weight: 600; }
+    td.team, th.team { text-align: left; }
+    td.pts { font-weight: 700; }
+    tr.top td { background: var(--mine); }
+    .fixture { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center;
+               background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 4px; }
+    .fixture .home { text-align: right; font-weight: 600; }
+    .fixture .away { text-align: left; font-weight: 600; }
+    .result { font-weight: 700; min-width: 60px; text-align: center; }
+    form.score { display: flex; gap: 6px; align-items: center; justify-content: center; }
+    form.score input { width: 56px; text-align: center; }
+    details.goals { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 0 0 10px; }
+    details.goals summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+    details.goals ul { list-style: none; padding: 0; margin: 8px 0; }
+    details.goals li { padding: 3px 0; }
+    form.goal input { flex: 1; min-width: 140px; }
+    .top-scorer { display: flex; flex-direction: column; gap: 2px; }
+    .top-scorer strong { font-size: 1.2rem; color: var(--accent-dark); }
+    ul.list { list-style: none; padding: 0; margin: 0; }
+    ul.list li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    #toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 10; }
+    .toast { background: var(--text); color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; }
+    .toast.error { background: var(--danger); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>⚽ League</h1>
+    <select id="leagueSelect" aria-label="Choose league"></select>
+    <button data-action="new">+ New league</button>
+    <button class="ghost" data-action="my-league">My league</button>
+  </header>
+  <main id="main"></main>
+  <div id="toasts"></div>
+
+<script>
+'use strict';
+
+// ---------- state ----------
+const KEY = 'league-html-v1';
+const WIN = 3, DRAW = 1, LOSS = 0;
+let state;
+const view = { creating: false, tab: 'table', openFid: null };
+
+// Some file viewers and in-app browsers block localStorage. The app still works there,
+// but leagues are kept only while the page stays open.
+const store = (() => {
+  try {
+    const probe = '__league_probe__';
+    localStorage.setItem(probe, probe);
+    localStorage.removeItem(probe);
+    return localStorage;
+  } catch {
+    return null;
+  }
+})();
+
+state = load(); // after `store` is defined above
+
+function load() {
+  try {
+    const s = JSON.parse(store ? store.getItem(KEY) : null);
+    if (s && Array.isArray(s.leagues)) return s;
+  } catch { /* fall through to empty state */ }
+  return { leagues: [], currentId: null };
+}
+function save() {
+  if (store) store.setItem(KEY, JSON.stringify(state));
+}
+const storageNotice = () => (store ? '' : `
+  <div class="card muted small">This browser can't save data, so leagues are kept only until you close this page.
+    Open the file in Chrome or Safari to keep them.</div>`);
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
+  { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const current = () => state.leagues.find((l) => l.id === state.currentId) || null;
+const teamName = (l, id) => l.teams.find((t) => t.id === id)?.name ?? '?';
+const scoreValue = (s) => {
+  if (s === '' || s === null || s === undefined) return null;
+  const n = parseInt(s, 10);
+  return Number.isNaN(n) ? null : Math.min(99, Math.max(0, n));
+};
+
+// ---------- schedule and matchdays ----------
+function roundRobin(ids) {
+  const list = [...ids];
+  if (list.length % 2) list.push(null);
+  const n = list.length, rounds = [];
+  for (let r = 0; r < n - 1; r++) {
+    const pairs = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = list[i], b = list[n - 1 - i];
+      if (a && b) pairs.push(r % 2 === 0 ? [a, b] : [b, a]);
+    }
+    rounds.push(pairs);
+    list.splice(1, 0, list.pop());
+  }
+  return rounds;
+}
+
+function hasResults(l) { return l.fixtures.some((f) => f.hg !== null || f.ag !== null); }
+
+function buildFixtures(l) {
+  if (hasResults(l)) throw new Error('Results have been entered, so the teams and format are locked');
+  l.fixtures = [];
+  if (l.teams.length < 2) return;
+  if (l.format === 'knockout') return buildKnockout(l);
+  const rounds = roundRobin(l.teams.map((t) => t.id));
+  const legs = l.format === 'double' ? [rounds, rounds.map((r) => r.map(([h, a]) => [a, h]))] : [rounds];
+  let matchday = 0;
+  for (const leg of legs) {
+    for (const pairs of leg) {
+      matchday++;
+      for (const [home, away] of pairs) {
+        l.fixtures.push({ id: uid(), round: matchday, home, away, hg: null, ag: null, goals: [] });
+      }
+    }
+  }
+}
+
+// ---------- knockout: losers are out; byes go to the top seeds ----------
+// A fixture is settled when it is a bye, or scored (and in a knockout, has a winner).
+function fixtureDecided(l, f) {
+  if (f.bye) return true;
+  if (f.hg === null || f.ag === null) return false;
+  return l.format !== 'knockout' || Boolean(f.winnerId);
+}
+
+function addKnockoutRound(l, round, entrants) {
+  for (let i = 0; i < entrants.length; i += 2) {
+    const a = entrants[i], b = entrants[i + 1];
+    if (a && b) {
+      l.fixtures.push({ id: uid(), round, home: a, away: b, hg: null, ag: null, goals: [], bye: false, winnerId: null });
+    } else {
+      const only = a || b;
+      l.fixtures.push({ id: uid(), round, home: only, away: null, hg: null, ag: null, goals: [], bye: true, winnerId: only });
+    }
+  }
+}
+
+function buildKnockout(l) {
+  const ids = l.teams.map((t) => t.id);
+  const size = 2 ** Math.ceil(Math.log2(ids.length));
+  const byes = size - ids.length;
+  const entrants = [];
+  for (let i = 0; i < byes; i++) entrants.push(ids[i], null);
+  entrants.push(...ids.slice(byes));
+  addKnockoutRound(l, 1, entrants);
+  advanceKnockout(l);
+}
+
+/** When a round is fully decided, creates the next round from its winners. Stops at the final. */
+function advanceKnockout(l) {
+  if (l.format !== 'knockout') return;
+  for (let round = 1; ; round++) {
+    const fx = l.fixtures.filter((f) => f.round === round);
+    if (!fx.length || fx.length === 1) return;
+    if (!fx.every((f) => fixtureDecided(l, f))) return;
+    if (!l.fixtures.some((f) => f.round === round + 1)) {
+      addKnockoutRound(l, round + 1, fx.map((f) => f.winnerId));
+    }
+  }
+}
+
+function knockoutSummary(l) {
+  const outRound = new Map();
+  for (const f of l.fixtures) {
+    if (!f.bye && fixtureDecided(l, f)) outRound.set(f.winnerId === f.home ? f.away : f.home, f.round);
+  }
+  const finalRound = l.fixtures.length ? Math.max(...l.fixtures.map((f) => f.round)) : null;
+  const final = l.fixtures.filter((f) => f.round === finalRound);
+  const champion = final.length === 1 && fixtureDecided(l, final[0]) ? teamName(l, final[0].winnerId) : null;
+  return {
+    champion,
+    stillIn: l.teams.filter((t) => !outRound.has(t.id)).map((t) => t.name),
+    out: [...outRound].map(([id, round]) => ({ name: teamName(l, id), round })),
+  };
+}
+
+function knockoutHtml(l) {
+  const k = knockoutSummary(l);
+  return `
+    ${k.champion
+      ? `<div class="card top-scorer"><span class="muted small">Champion</span><strong>${esc(k.champion)}</strong></div>`
+      : '<p class="muted">The knockout is in progress. Results are on the Fixtures tab.</p>'}
+    <div class="card"><h3>Still in</h3><p>${k.stillIn.map((n) => esc(n)).join(', ') || '—'}</p></div>
+    <div class="card"><h3>Knocked out</h3>
+      ${k.out.length
+        ? k.out.map((o) => `<p class="small">${esc(o.name)} <span class="muted">(round ${o.round})</span></p>`).join('')
+        : '<p class="muted small">No one yet.</p>'}
+    </div>`;
+}
+
+const roundComplete = (l, r) => l.fixtures.filter((f) => f.round === r)
+  .every((f) => fixtureDecided(l, f));
+
+function currentRound(l) {
+  const rounds = [...new Set(l.fixtures.map((f) => f.round))].sort((a, b) => a - b);
+  return rounds.find((r) => !roundComplete(l, r)) ?? null;
+}
+
+const isOpen = (l, f) => { const c = currentRound(l); return c === null || f.round <= c; };
+
+function setResult(l, f, hg, ag, winnerId = null) {
+  if ((hg === null) !== (ag === null)) throw new Error('Enter both scores, or clear both');
+  const c = currentRound(l);
+  if (c !== null && f.round > c) {
+    throw new Error(`Matchday ${c} must be completed before matchday ${f.round} opens`);
+  }
+  if (hg === null && l.fixtures.some((x) => x.round > f.round && x.hg !== null)) {
+    throw new Error('Clear the results of later matchdays first');
+  }
+  if (l.format === 'knockout') {
+    if (f.bye) throw new Error('A bye has no score');
+    if (l.fixtures.some((x) => x.round > f.round)) throw new Error('Later rounds already depend on this result');
+    if (hg === null) f.winnerId = null;
+    else if (hg !== ag) f.winnerId = hg > ag ? f.home : f.away;
+    else if (winnerId === f.home || winnerId === f.away) f.winnerId = winnerId;
+    else throw new Error('Choose who advances after a draw');
+  }
+  f.hg = hg;
+  f.ag = ag;
+}
+
+// ---------- standings and scorers ----------
+function table(l) {
+  const rows = new Map(l.teams.map((t) => [t.id, { id: t.id, name: t.name, p: 0, w: 0, d: 0, lo: 0, gf: 0, ga: 0, pts: 0 }]));
+  for (const f of l.fixtures) {
+    if (f.hg === null || f.ag === null) continue;
+    const h = rows.get(f.home), a = rows.get(f.away);
+    if (!h || !a) continue;
+    h.p++; a.p++;
+    h.gf += f.hg; h.ga += f.ag; a.gf += f.ag; a.ga += f.hg;
+    if (f.hg > f.ag) { h.w++; a.lo++; h.pts += WIN; a.pts += LOSS; }
+    else if (f.hg < f.ag) { a.w++; h.lo++; a.pts += WIN; h.pts += LOSS; }
+    else { h.d++; a.d++; h.pts += DRAW; a.pts += DRAW; }
+  }
+  return [...rows.values()]
+    .map((r) => ({ ...r, gd: r.gf - r.ga }))
+    .sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.name.localeCompare(y.name));
+}
+
+function scorers(l) {
+  const byKey = new Map();
+  for (const f of l.fixtures) {
+    for (const g of f.goals) {
+      const key = `${g.scorer.toLowerCase()}|${g.teamId}`;
+      if (!byKey.has(key)) byKey.set(key, { name: g.scorer, team: teamName(l, g.teamId), goals: 0 });
+      byKey.get(key).goals++;
+    }
+  }
+  return [...byKey.values()].sort((a, b) => b.goals - a.goals || a.name.localeCompare(b.name));
+}
+
+// ---------- rendering ----------
+function toast(message, isError = false) {
+  const el = document.createElement('div');
+  el.className = `toast${isError ? ' error' : ''}`;
+  el.textContent = message;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function render() {
+  const select = document.getElementById('leagueSelect');
+  select.innerHTML = state.leagues.map((l) =>
+    `<option value="${l.id}" ${l.id === state.currentId ? 'selected' : ''}>${esc(l.name)}</option>`).join('');
+  select.style.display = state.leagues.length ? '' : 'none';
+
+  const main = document.getElementById('main');
+  const l = current();
+  if (view.creating || !l) {
+    main.innerHTML = storageNotice() + createForm(Boolean(l)) + (view.findOpen ? findForm() : '');
+    return;
+  }
+  main.innerHTML = `
+    ${storageNotice()}
+    <h2>${esc(l.name)}</h2>
+    <nav class="tabs">
+      ${TABS.map(([key, label]) => `<button data-action="tab" data-tab="${key}" class="${key === view.tab ? 'active' : ''}">${label}</button>`).join('')}
+    </nav>
+    <section>${({ table: tableTab, fixtures: fixturesTab, scorers: scorersTab, rules: rulesTab, teams: teamsTab })[view.tab](l)}</section>`;
+}
+
+const TABS = [['table', 'Table'], ['fixtures', 'Fixtures'], ['scorers', 'Top scorers'], ['rules', 'Rules'], ['teams', 'Teams']];
+
+function createForm(canCancel) {
+  return `
+    <form data-form="create" class="card stack" style="max-width:520px;margin:0 auto">
+      <h2>Create a league</h2>
+      <label>League name <input name="name" required maxlength="80"></label>
+      <label class="check"><input type="checkbox" name="playing" checked> I'll play in this league</label>
+      <label class="own-team">Your team name <input name="team" maxlength="40"></label>
+      <label>Other teams (one per line)
+        <textarea name="teams" rows="5" placeholder="One team per line"></textarea>
+      </label>
+      <label>Format
+        <select name="format">
+          <option value="single">Single: each pair plays once</option>
+          <option value="double">Home and away: each pair plays twice</option>
+          <option value="knockout">Knockout: losers are out</option>
+        </select>
+      </label>
+      <label>Rules (optional) <textarea name="rules" rows="3" maxlength="5000"></textarea></label>
+      <div class="row">
+        <button type="submit">Create league</button>
+        <button type="button" class="ghost" data-action="my-league">My league</button>
+        ${canCancel ? '<button type="button" class="ghost" data-action="cancel">Cancel</button>' : ''}
+      </div>
+    </form>`;
+}
+
+function findForm() {
+  return `
+    <form data-form="find" class="card row" style="max-width:520px;margin:12px auto 0">
+      <label style="flex:1">League name from the admin
+        <input name="name" required maxlength="80" placeholder="e.g. Kibei">
+      </label>
+      <button type="submit">Open league</button>
+    </form>`;
+}
+
+function tableTab(l) {
+  if (l.format === 'knockout') return knockoutHtml(l);
+  const rows = table(l);
+  if (!rows.length) return '<p class="muted">Add teams in the Teams tab to get started.</p>';
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th class="team">Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>GD</th><th>Pts</th></tr></thead>
+        <tbody>${rows.map((r, i) => `
+          <tr>
+            <td>${i + 1}</td><td class="team">${esc(r.name)}</td>
+            <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.lo}</td>
+            <td>${r.gf}</td><td>${r.ga}</td>
+            <td>${r.gd > 0 ? `+${r.gd}` : r.gd}</td>
+            <td class="pts">${r.pts}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted small">Win = 3 points, draw = 1, loss = 0. Ties are ordered by goal difference, then goals scored.</p>`;
+}
+
+function fixtureHtml(l, f) {
+  if (f.bye) {
+    return `<div class="fixture"><span class="home">${esc(teamName(l, f.home))}</span>
+      <span class="result muted">Bye</span><span class="away muted small">advances automatically</span></div>`;
+  }
+  const open = isOpen(l, f);
+  const played = f.hg !== null && f.ag !== null;
+  const home = teamName(l, f.home), away = teamName(l, f.away);
+  const middle = open
+    ? `<form class="score" data-form="score" data-fid="${f.id}">
+         <input name="hg" type="number" min="0" max="99" value="${played ? f.hg : ''}" aria-label="${esc(home)} score">
+         <span>–</span>
+         <input name="ag" type="number" min="0" max="99" value="${played ? f.ag : ''}" aria-label="${esc(away)} score">
+         ${l.format === 'knockout' ? `
+           <select name="winnerId" aria-label="Advances after a draw">
+             <option value="">Draw: pick winner</option>
+             <option value="${f.home}" ${f.winnerId === f.home ? 'selected' : ''}>${esc(home)}</option>
+             <option value="${f.away}" ${f.winnerId === f.away ? 'selected' : ''}>${esc(away)}</option>
+           </select>` : ''}
+         <button type="submit">Save</button>
+       </form>`
+    : `<span class="result">${played ? `${f.hg} – ${f.ag}` : 'vs'}</span>`;
+  const goals = f.goals.map((g) => `
+      <li>⚽ ${esc(g.scorer)} <span class="muted small">(${esc(teamName(l, g.teamId))})</span>
+        ${open ? `<button type="button" class="link danger" data-action="del-goal" data-fid="${f.id}" data-gid="${g.id}">remove</button>` : ''}
+      </li>`).join('');
+  const addGoal = open ? `
+    <form class="row goal" data-form="goal" data-fid="${f.id}">
+      <input name="scorer" placeholder="Scorer name" required maxlength="40">
+      <select name="teamId">
+        <option value="${f.home}">${esc(home)}</option>
+        <option value="${f.away}">${esc(away)}</option>
+      </select>
+      <button type="submit">Add goal</button>
+    </form>` : '';
+  return `
+    <div class="fixture">
+      <span class="home">${esc(home)}</span>${middle}<span class="away">${esc(away)}</span>
+    </div>
+    <details class="goals" ${view.openFid === f.id ? 'open' : ''}>
+      <summary>Goals (${f.goals.length})</summary>
+      ${goals ? `<ul>${goals}</ul>` : '<p class="muted small">No goals recorded.</p>'}
+      ${addGoal}
+    </details>`;
+}
+
+function fixturesTab(l) {
+  const formatTools = !hasResults(l) ? `
+    <form data-form="format" class="card row">
+      <label>Format
+        <select name="format">
+          <option value="single" ${l.format === 'single' ? 'selected' : ''}>Single: each pair plays once</option>
+          <option value="double" ${l.format === 'double' ? 'selected' : ''}>Home and away: each pair plays twice</option>
+          <option value="knockout" ${l.format === 'knockout' ? 'selected' : ''}>Knockout: losers are out</option>
+        </select>
+      </label>
+      <button type="submit">Rebuild fixtures</button>
+    </form>` : '';
+
+  if (!l.fixtures.length) {
+    return `${formatTools}<p class="muted">Fixtures appear once there are at least two teams.</p>`;
+  }
+  const rounds = [...new Set(l.fixtures.map((f) => f.round))].sort((a, b) => a - b);
+  const sections = rounds.map((r) => {
+    const list = l.fixtures.filter((f) => f.round === r);
+    const status = roundComplete(l, r) ? 'Completed'
+      : isOpen(l, list[0]) ? 'Open for results'
+        : `Locked until matchday ${r - 1} is complete`;
+    const label = l.format === 'knockout' ? (list.length === 1 ? 'Final' : `Round ${r}`) : `Matchday ${r}`;
+    return `<h3>${label}<span class="badge">${status}</span></h3>${list.map((f) => fixtureHtml(l, f)).join('')}`;
+  }).join('');
+  return `${formatTools}${sections}`;
+}
+
+function scorersTab(l) {
+  const list = scorers(l);
+  if (!list.length) return '<p class="muted">No goals recorded yet. Add scorers on the Fixtures tab.</p>';
+  const top = list[0].goals;
+  const leaders = list.filter((s) => s.goals === top);
+  return `
+    <div class="card top-scorer">
+      <span class="muted small">${leaders.length > 1 ? 'Joint top scorers' : 'Top scorer'}</span>
+      <strong>${leaders.map((s) => esc(s.name)).join(', ')}</strong>
+      <span>${top} ${top === 1 ? 'goal' : 'goals'}</span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th class="team">Player</th><th class="team">Team</th><th>Goals</th></tr></thead>
+        <tbody>${list.map((s) => `
+          <tr>
+            <td>${list.findIndex((x) => x.goals === s.goals) + 1}</td>
+            <td class="team">${esc(s.name)}</td><td class="team">${esc(s.team)}</td>
+            <td class="pts">${s.goals}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function rulesTab(l) {
+  return `
+    <form data-form="rules" class="card stack">
+      <label>League rules
+        <textarea name="rules" rows="12" maxlength="5000" placeholder="e.g. Matches are played on Saturdays.">${esc(l.rules)}</textarea>
+      </label>
+      <button type="submit">Save rules</button>
+    </form>`;
+}
+
+function teamsTab(l) {
+  const locked = hasResults(l);
+  return `
+    ${!locked ? `
+      <form data-form="team" class="card row">
+        <input name="teamName" placeholder="Add a team" required maxlength="40">
+        <button type="submit">Add team</button>
+      </form>` : '<p class="muted small">Teams are locked because results have been entered.</p>'}
+    <div class="card">
+      <ul class="list">
+        ${l.teams.map((t) => `
+          <li>
+            <strong>${esc(t.name)}</strong>
+            ${!locked ? `<button type="button" class="link danger" data-action="del-team" data-id="${t.id}">remove</button>` : ''}
+          </li>`).join('')}
+      </ul>
+    </div>
+    <button type="button" class="danger" data-action="del-league">Delete this league</button>`;
+}
+
+// ---------- events ----------
+document.getElementById('leagueSelect').addEventListener('change', (e) => {
+  state.currentId = e.target.value;
+  view.openFid = null;
+  save();
+  render();
+});
+
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const l = current();
+  try {
+    switch (btn.dataset.action) {
+      case 'new': view.creating = true; render(); break;
+      case 'my-league': view.creating = true; view.findOpen = true; render(); break;
+      case 'cancel': view.creating = false; render(); break;
+      case 'tab': view.tab = btn.dataset.tab; view.openFid = null; render(); break;
+      case 'del-team': {
+        if (hasResults(l)) throw new Error('Teams are locked after results are entered');
+        l.teams = l.teams.filter((t) => t.id !== btn.dataset.id);
+        buildFixtures(l);
+        save(); render(); toast('Team removed and fixtures rebuilt');
+        break;
+      }
+      case 'del-goal': {
+        const f = l.fixtures.find((x) => x.id === btn.dataset.fid);
+        if (!isOpen(l, f)) throw new Error('This matchday is locked');
+        f.goals = f.goals.filter((g) => g.id !== btn.dataset.gid);
+        view.openFid = f.id;
+        save(); render(); toast('Goal removed');
+        break;
+      }
+      case 'del-league': {
+        if (!confirm('Delete this league and all its results?')) return;
+        state.leagues = state.leagues.filter((x) => x.id !== l.id);
+        state.currentId = state.leagues[0]?.id ?? null;
+        view.creating = !state.currentId;
+        save(); render(); toast('League deleted');
+        break;
+      }
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// Show or hide the "your team name" field when the creator opts in or out of playing.
+document.addEventListener('change', (e) => {
+  if (e.target.name !== 'playing') return;
+  const own = e.target.form.querySelector('.own-team');
+  own.style.display = e.target.checked ? '' : 'none';
+});
+
+document.addEventListener('submit', (e) => {
+  const form = e.target;
+  if (!form.dataset.form) return;
+  e.preventDefault();
+  const data = new FormData(form);
+  const l = current();
+  try {
+    switch (form.dataset.form) {
+      case 'find': {
+        const wanted = data.get('name').trim().toLowerCase();
+        const found = state.leagues.find((x) => x.name.trim().toLowerCase() === wanted);
+        if (!found) {
+          throw new Error(`No league called "${data.get('name').trim()}" on this device. Leagues are saved per browser, so use the same device as the admin.`);
+        }
+        state.currentId = found.id;
+        view.creating = false; view.findOpen = false; view.tab = 'table'; view.openFid = null;
+        save(); render();
+        break;
+      }
+      case 'create': {
+        const name = data.get('name').trim();
+        const playing = data.get('playing') === 'on';
+        if (playing && !data.get('team').trim()) throw new Error('Enter your team name, or untick "I\'ll play"');
+        const names = [...(playing ? [data.get('team')] : []), ...data.get('teams').split('\n')]
+          .map((s) => s.trim()).filter(Boolean);
+        const lower = names.map((n) => n.toLowerCase());
+        if (new Set(lower).size !== lower.length) throw new Error('Team names must be different');
+        if (names.length > 30) throw new Error('A league can have at most 30 teams');
+        const league = {
+          id: uid(), name, format: ['double', 'knockout'].includes(data.get('format')) ? data.get('format') : 'single',
+          rules: data.get('rules').trim(), teams: names.map((n) => ({ id: uid(), name: n })), fixtures: [],
+        };
+        buildFixtures(league);
+        state.leagues.push(league);
+        state.currentId = league.id;
+        view.creating = false; view.tab = 'table';
+        save(); render(); toast('League created');
+        break;
+      }
+      case 'score': {
+        const f = l.fixtures.find((x) => x.id === form.dataset.fid);
+        setResult(l, f, scoreValue(data.get('hg')), scoreValue(data.get('ag')), data.get('winnerId') || null);
+        advanceKnockout(l);
+        view.openFid = null;
+        save(); render(); toast('Score saved');
+        break;
+      }
+      case 'goal': {
+        const f = l.fixtures.find((x) => x.id === form.dataset.fid);
+        if (!isOpen(l, f)) throw new Error('This matchday is locked');
+        const scorer = data.get('scorer').trim();
+        if (!scorer) throw new Error('Scorer name is required');
+        f.goals.push({ id: uid(), scorer, teamId: data.get('teamId') });
+        view.openFid = f.id;
+        save(); render(); toast('Goal added');
+        break;
+      }
+      case 'format': {
+        if (hasResults(l)) throw new Error('Results have been entered, so the format is locked');
+        const fmt = data.get('format');
+        const copy = { ...l, format: ['double', 'knockout'].includes(fmt) ? fmt : 'single' };
+        buildFixtures(copy);
+        l.format = copy.format;
+        l.fixtures = copy.fixtures;
+        save(); render(); toast('Fixtures rebuilt');
+        break;
+      }
+      case 'team': {
+        if (hasResults(l)) throw new Error('Teams are locked after results are entered');
+        const name = data.get('teamName').trim();
+        if (l.teams.some((t) => t.name.toLowerCase() === name.toLowerCase())) throw new Error('That team name is already taken');
+        if (l.teams.length >= 30) throw new Error('A league can have at most 30 teams');
+        l.teams.push({ id: uid(), name });
+        buildFixtures(l);
+        save(); render(); toast('Team added and fixtures rebuilt');
+        break;
+      }
+      case 'rules': {
+        l.rules = data.get('rules').trim();
+        save(); render(); toast('Rules saved');
+        break;
+      }
+    }
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+render();
+</script>
+</body>
+</html>
